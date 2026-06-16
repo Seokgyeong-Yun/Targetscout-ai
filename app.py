@@ -1,5 +1,5 @@
 import streamlit as st
-
+import requests
 # Page settings
 st.set_page_config(
     page_title="TargetScout AI",
@@ -47,23 +47,58 @@ target = st.text_input(
 )
 
 if target:
+
     st.success(f"Target entered: {target}")
 
-    st.subheader("TargetScout AI Summary")
-    st.markdown(f"""
-    You searched for **{target}**.
+    st.subheader("Recent Publications")
 
-    In the full version, this app will provide:
+    try:
+        search_url = (
+            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
+            f"esearch.fcgi?db=pubmed&term={target}"
+            "&retmax=5&retmode=json"
+        )
 
-    - Basic target overview
-    - Related diseases
-    - Recent PubMed literature
-    - Clinical trial information
-    - Competitive antibody landscape
-    - Patent search resources
-    - Target suitability assessment
-    - Daily research trend monitoring
-    """)
+        search_response = requests.get(search_url)
+        search_data = search_response.json()
+
+        pmids = search_data["esearchresult"]["idlist"]
+
+        if len(pmids) == 0:
+            st.warning("No publications found.")
+
+        else:
+
+            for pmid in pmids:
+
+                summary_url = (
+                    "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/"
+                    f"esummary.fcgi?db=pubmed&id={pmid}&retmode=json"
+                )
+
+                summary_response = requests.get(summary_url)
+                summary_data = summary_response.json()
+
+                article = summary_data["result"][pmid]
+
+                title = article.get("title", "No title")
+
+                st.markdown(
+                    f"**{title}**"
+                )
+
+                st.markdown(
+                    f"PMID: {pmid}"
+                )
+
+                st.markdown(
+                    f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
+                )
+
+                st.divider()
+
+    except Exception as e:
+        st.error(f"Error: {e}")
 
 else:
     st.info("Please enter a target name to start evaluation.")
