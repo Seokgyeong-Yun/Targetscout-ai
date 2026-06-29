@@ -29,11 +29,14 @@ target = st.text_input(
     placeholder="Example: MSLN, HER2, HER3, TROP2, CLDN18"
 )
 
+THICK_DIVIDER = "<hr style='border:none; border-top:4px solid #444; margin:32px 0 16px 0'>"
+
 if target:
     target_key = target.upper()
     st.success(f"Target entered: {target_key}")
 
     # --- UniProt Protein Information ---
+    st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
     st.subheader("Protein Information (UniProt)")
 
     uniprot_id = None
@@ -111,6 +114,7 @@ if target:
         st.error(f"UniProt Error: {e}")
 
     # --- NCBI Gene Summary ---
+    st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
     st.subheader("Gene Summary (NCBI Gene)")
 
     try:
@@ -151,6 +155,7 @@ if target:
         st.error(f"NCBI Gene Error: {e}")
 
     # --- PDB Structure ---
+    st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
     st.subheader("Protein 3D Structure (PDB)")
 
     try:
@@ -232,6 +237,7 @@ if target:
         st.error(f"PDB Error: {e}")
 
     # --- Competitive Drug (Open Targets) ---
+    st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
     st.subheader("Competitive Drug (Open Targets)")
     st.caption(
         f"Drugs and clinical candidates targeting **{target_key}**, from the Open Targets Platform."
@@ -323,6 +329,7 @@ if target:
         st.error(f"Open Targets Error: {e}")
 
     # --- Most Cited Publications ---
+    st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
     st.subheader("Most Cited Publications (PubMed)")
     st.caption(
         f"Results for the search query **'{target_key} + antibody'**, ranked by citation count (most cited first). "
