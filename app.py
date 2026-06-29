@@ -231,8 +231,8 @@ if target:
     except Exception as e:
         st.error(f"PDB Error: {e}")
 
-    # --- Competitive Landscape (Open Targets) ---
-    st.subheader("Competitive Landscape (Open Targets)")
+    # --- Competitive Drug (Open Targets) ---
+    st.subheader("Competitive Drug (Open Targets)")
     st.caption(
         f"Drugs and clinical candidates targeting **{target_key}**, from the Open Targets Platform."
     )
@@ -298,8 +298,8 @@ if target:
                     moa_text = ", ".join(moa_list) if moa_list else "N/A"
 
                     st.markdown(
-                        f"<p style='font-size:18px; font-weight:bold; margin-bottom:2px'>"
-                        f"{name} <span style='font-size:14px; color:gray'>({drug_type})</span></p>",
+                        f"<p style='font-size:26px; font-weight:bold; margin-bottom:2px'>"
+                        f"{name} <span style='font-size:15px; color:gray'>({drug_type})</span></p>",
                         unsafe_allow_html=True
                     )
                     if description:
