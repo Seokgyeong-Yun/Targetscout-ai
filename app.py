@@ -440,7 +440,7 @@ if target:
         if ot_error:
             st.error(f"openFDA Error: {ot_error}")
         elif not approved_drug_names:
-            st.warning("승인된 약물이 없습니다.")
+            st.warning("No FDA-approved drugs found for this target.")
         else:
             # Look up each approved drug in openFDA, keep those that are FDA-approved
             fda_drugs = []
@@ -450,7 +450,7 @@ if target:
                     fda_drugs.append((drug_name, fda))
 
             if not fda_drugs:
-                st.warning("승인된 약물이 없습니다.")
+                st.warning("No FDA-approved drugs found for this target.")
             else:
                 # Sort by FDA approval date, newest first
                 fda_drugs.sort(key=lambda x: x[1].get("_date", ""), reverse=True)
@@ -573,7 +573,8 @@ if target:
             for s in studies:
                 p = s.get("protocolSection", {})
                 idm = p.get("identificationModule", {})
-                status = p.get("statusModule", {}).get("overallStatus", "")
+                status_mod = p.get("statusModule", {})
+                status = status_mod.get("overallStatus", "")
                 phases = p.get("designModule", {}).get("phases", [])
                 conditions = p.get("conditionsModule", {}).get("conditions", [])
 
@@ -582,12 +583,20 @@ if target:
                 phase_text = ", ".join(ph.replace("PHASE", "Phase ") for ph in phases) if phases else "N/A"
                 status_text = status.replace("_", " ").title() if status else "Unknown"
 
+                start_date = status_mod.get("startDateStruct", {}).get("date", "")
+                end_date = (
+                    status_mod.get("completionDateStruct", {}).get("date", "")
+                    or status_mod.get("primaryCompletionDateStruct", {}).get("date", "")
+                )
+
                 st.markdown(
                     f"<p style='font-size:18px; font-weight:bold; margin-bottom:2px'>{title}</p>",
                     unsafe_allow_html=True
                 )
                 meta = f"**Status:** {status_text} · **Phase:** {phase_text}"
                 st.markdown(meta)
+                if start_date or end_date:
+                    st.markdown(f"**Start:** {start_date or 'N/A'} · **Completion:** {end_date or 'N/A'}")
                 if conditions:
                     st.markdown(f"**Conditions:** {', '.join(conditions[:4])}")
                 st.markdown(f"[View on ClinicalTrials.gov](https://clinicaltrials.gov/study/{nct_id})")
