@@ -434,7 +434,7 @@ if target:
     # --- FDA-Approved Drugs (openFDA) ---
     st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
     st.subheader("FDA-Approved Drugs (openFDA)")
-    st.caption("Shows only FDA-approved drugs targeting this target.")
+    st.info("✅ Shows only **FDA-approved** drugs (confirmed in the FDA Drugs@FDA database).")
 
     try:
         if ot_error:
@@ -492,10 +492,11 @@ if target:
     # --- Competitive Drug (Open Targets) ---
     st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
     st.subheader("Competitive Drug (Open Targets)")
-    st.caption(
-        f"Drugs and clinical candidates targeting **{target_key}**, from Open Targets. "
-        "⚠️ Approval status here may differ slightly from the FDA (Open Targets aggregates "
-        "global regulators and may not be fully up to date)."
+    st.caption(f"Drugs and clinical candidates targeting **{target_key}**, from Open Targets.")
+    st.warning(
+        "⚠️ **Approval status may differ from the FDA.** Open Targets aggregates global "
+        "regulators (FDA, EMA, etc.) and past approvals, so a drug marked *Approval* here "
+        "may not be FDA-approved (e.g. EMA-only or later withdrawn). Check the FDA section above."
     )
 
     try:
