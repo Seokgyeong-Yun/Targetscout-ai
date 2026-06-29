@@ -442,34 +442,46 @@ if target:
         elif not approved_drug_names:
             st.warning("승인된 약물이 없습니다.")
         else:
-            fda_found = 0
+            # Look up each approved drug in openFDA, keep those that are FDA-approved
+            fda_drugs = []
             for drug_name in approved_drug_names:
                 fda = fetch_fda_approval(drug_name)
-                if fda is None:
-                    continue  # not found in FDA database (may be approved elsewhere)
-                fda_found += 1
+                if fda is not None:
+                    fda_drugs.append((drug_name, fda))
+
+            if not fda_drugs:
+                st.warning("승인된 약물이 없습니다.")
+            else:
+                # Sort by FDA approval date, newest first
+                fda_drugs.sort(key=lambda x: x[1].get("_date", ""), reverse=True)
+                shown = fda_drugs[:5]
+
+                for drug_name, fda in shown:
+                    st.markdown(
+                        f"<p style='font-size:24px; font-weight:bold; margin-bottom:2px'>"
+                        f"{drug_name.title()}</p>",
+                        unsafe_allow_html=True
+                    )
+                    if fda.get("brand_name"):
+                        st.markdown(f"**Brand name:** {fda['brand_name']}")
+                    if fda.get("sponsor"):
+                        st.markdown(f"**Sponsor:** {fda['sponsor'].title()}")
+                    if fda.get("approval_date"):
+                        st.markdown(f"**First FDA approval:** {fda['approval_date']}")
+                    app_no = fda.get("application_number")
+                    if app_no:
+                        st.markdown(
+                            f"[View on Drugs@FDA]"
+                            f"(https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo={app_no.replace('BLA','').replace('NDA','').replace('ANDA','')})"
+                        )
+                    st.divider()
 
                 st.markdown(
-                    f"<p style='font-size:24px; font-weight:bold; margin-bottom:2px'>"
-                    f"{drug_name.title()}</p>",
+                    f"<a href='https://platform.opentargets.org/target/{ot_ensembl_id}/known_drugs' "
+                    f"target='_blank' style='font-size:22px; font-weight:bold'>"
+                    f"💊 View more approved drugs →</a>",
                     unsafe_allow_html=True
                 )
-                if fda.get("brand_name"):
-                    st.markdown(f"**Brand name:** {fda['brand_name']}")
-                if fda.get("sponsor"):
-                    st.markdown(f"**Sponsor:** {fda['sponsor'].title()}")
-                if fda.get("approval_date"):
-                    st.markdown(f"**First FDA approval:** {fda['approval_date']}")
-                app_no = fda.get("application_number")
-                if app_no:
-                    st.markdown(
-                        f"[View on Drugs@FDA]"
-                        f"(https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo={app_no.replace('BLA','').replace('NDA','').replace('ANDA','')})"
-                    )
-                st.divider()
-
-            if fda_found == 0:
-                st.warning("승인된 약물이 없습니다.")
 
     except Exception as e:
         st.error(f"openFDA Error: {e}")
