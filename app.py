@@ -31,79 +31,74 @@ target = st.text_input(
 
 THICK_DIVIDER = "<hr style='border:none; border-top:4px solid #444; margin:32px 0 16px 0'>"
 
-# Greek letter expansions for trailing abbreviations (e.g. FRa -> FR alpha)
-GREEK_LETTERS = {
-    "A": "alpha", "B": "beta", "G": "gamma",
-    "D": "delta", "E": "epsilon",
+# Latin -> Greek letter map, so a trailing abbreviation like "FRa" can be
+# matched against the real greek symbol "FRα" used by gene-name databases.
+GREEK_CHARS = {
+    "A": "α", "B": "β", "G": "γ", "D": "δ", "E": "ε", "K": "κ",
 }
 
-# Common antibody-target shorthands that don't resolve cleanly in UniProt search.
-# Maps the typed alias (uppercase) -> official gene symbol.
-TARGET_ALIASES = {
-    "FRA": "FOLR1", "FRALPHA": "FOLR1", "FOLRA": "FOLR1",
-    "FRB": "FOLR2", "FRBETA": "FOLR2",
-    "PD1": "PDCD1", "PD-1": "PDCD1",
-    "PDL1": "CD274", "PD-L1": "CD274",
-    "PDL2": "PDCD1LG2", "PD-L2": "PDCD1LG2",
-    "HER1": "EGFR", "ERBB1": "EGFR",
-    "HER2": "ERBB2", "NEU": "ERBB2",
-    "HER3": "ERBB3", "HER4": "ERBB4",
-    "FCRN": "FCGRT",
-    "TROP2": "TACSTD2",
-    "CLDN18.2": "CLDN18", "CLDN182": "CLDN18",
-    "B7H3": "CD276", "B7-H3": "CD276",
-    "B7H4": "VTCN1", "B7-H4": "VTCN1",
-    "EPCAM": "EPCAM", "CEA": "CEACAM5",
-    "GD2": "B4GALNT1",
-    "BCMA": "TNFRSF17", "CD319": "SLAMF7",
-}
+HGNC_HEADERS = {"Accept": "application/json"}
 
 
-def make_search_variants(term):
-    """Generate search variants: known alias first, then greek-letter expansions."""
+def search_variants(term):
+    """Greek form first (e.g. FRA -> FRα), then the literal term."""
     variants = []
-    if term in TARGET_ALIASES:
-        variants.append(TARGET_ALIASES[term])
+    if len(term) > 1 and term[-1] in GREEK_CHARS:
+        variants.append(term[:-1] + GREEK_CHARS[term[-1]])
     variants.append(term)
-    if len(term) > 1 and term[-1] in GREEK_LETTERS:
-        base = term[:-1]
-        word = GREEK_LETTERS[term[-1]]
-        variants.append(f"{base} {word}")  # e.g. "FR alpha"
-        variants.append(f"{base}{word}")   # e.g. "FRalpha"
     return variants
 
 
-def resolve_uniprot(term):
-    """Find a UniProt entry. Returns (protein, match_type, used_query).
+def _hgnc_docs(path):
+    try:
+        resp = requests.get(f"https://rest.genenames.org/{path}", headers=HGNC_HEADERS)
+        return resp.json().get("response", {}).get("docs", [])
+    except Exception:
+        return []
 
-    Tries exact gene matches first (precise), then falls back to full-text
-    search (labeled as a closest match that should be verified).
+
+def resolve_official_symbol(term):
+    """Resolve any input to an official HGNC gene symbol via search (no hardcoding).
+
+    Returns (official_symbol, quality): quality is 'exact' for an
+    official/alias/previous-symbol match, 'closest' for a fuzzy match,
+    or (None, None) if nothing is found.
     """
-    variants = make_search_variants(term)
+    variants = search_variants(term)
 
-    # Pass 1: exact gene-name match for each variant
+    # 1. exact official symbol
     for v in variants:
-        url = (
-            "https://rest.uniprot.org/uniprotkb/search?"
-            f"query=gene_exact:{urllib.parse.quote(v)}"
-            "+AND+organism_id:9606+AND+reviewed:true&format=json&size=1"
-        )
-        results = requests.get(url).json().get("results", [])
-        if results:
-            return results[0], "exact", v
+        docs = _hgnc_docs(f"fetch/symbol/{urllib.parse.quote(v)}")
+        if docs:
+            return docs[0]["symbol"], "exact"
 
-    # Pass 2: full-text search for each variant (closest match)
+    # 2. exact alias or previous symbol
     for v in variants:
-        url = (
-            "https://rest.uniprot.org/uniprotkb/search?"
-            f"query={urllib.parse.quote(v)}"
-            "+AND+organism_id:9606+AND+reviewed:true&format=json&size=1"
-        )
-        results = requests.get(url).json().get("results", [])
-        if results:
-            return results[0], "closest", v
+        docs = _hgnc_docs(f"search/alias_symbol/{urllib.parse.quote(v)}")
+        if docs:
+            return docs[0]["symbol"], "exact"
+        docs = _hgnc_docs(f"search/prev_symbol/{urllib.parse.quote(v)}")
+        if docs:
+            return docs[0]["symbol"], "exact"
 
-    return None, None, None
+    # 3. fuzzy full-text search (closest match)
+    for v in variants:
+        docs = _hgnc_docs(f"search/{urllib.parse.quote(v)}")
+        if docs:
+            return docs[0]["symbol"], "closest"
+
+    return None, None
+
+
+def fetch_uniprot(symbol):
+    """Fetch the reviewed human UniProt entry for an exact gene symbol."""
+    url = (
+        "https://rest.uniprot.org/uniprotkb/search?"
+        f"query=gene_exact:{urllib.parse.quote(symbol)}"
+        "+AND+organism_id:9606+AND+reviewed:true&format=json&size=1"
+    )
+    results = requests.get(url).json().get("results", [])
+    return results[0] if results else None
 
 
 if target:
@@ -116,16 +111,21 @@ if target:
 
     uniprot_id = None
     try:
-        protein, match_type, used_query = resolve_uniprot(target_key)
+        # Resolve the input to an official gene symbol via HGNC, then fetch UniProt
+        official_symbol, match_type = resolve_official_symbol(target_key)
+        protein = fetch_uniprot(official_symbol) if official_symbol else None
+        used_query = official_symbol
 
         if protein is None:
-            st.warning(f"No protein found for '{target_key}' (also tried alpha/beta expansions).")
+            st.warning(f"No gene/protein found for '{target_key}' (also tried greek-letter forms).")
         else:
             if match_type == "closest":
                 st.info(
-                    f"No exact gene match for '{target_key}'. "
-                    f"Showing the closest match from a search for '{used_query}' — please verify."
+                    f"No exact gene-symbol match for '{target_key}'. "
+                    f"Showing the closest match (official symbol: {official_symbol}) — please verify."
                 )
+            elif official_symbol and official_symbol.upper() != target_key:
+                st.caption(f"Resolved '{target_key}' → official gene symbol **{official_symbol}**")
             uniprot_id = protein.get("primaryAccession", "Unknown")
             organism = protein.get("organism", {}).get("scientificName", "Unknown")
             protein_length = protein.get("sequence", {}).get("length", "Unknown")
