@@ -251,8 +251,8 @@ if target:
                     )
                     st.code(f">{uniprot_id}|{gene_name}\n{wrapped}", language=None)
                     st.markdown(
-                        f"Source: [UniProt FASTA]"
-                        f"(https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta)"
+                        f"Source: [UniProt {uniprot_id} — Sequence]"
+                        f"(https://www.uniprot.org/uniprotkb/{uniprot_id}/entry#sequences)"
                     )
 
     except Exception as e:
