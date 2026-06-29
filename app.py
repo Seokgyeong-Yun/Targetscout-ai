@@ -496,7 +496,8 @@ if target:
     st.warning(
         "⚠️ **Approval status may differ from the FDA.** Open Targets aggregates global "
         "regulators (FDA, EMA, etc.) and past approvals, so a drug marked *Approval* here "
-        "may not be FDA-approved (e.g. EMA-only or later withdrawn). Check the FDA section above."
+        "may not be FDA-approved (e.g. EMA-only or later withdrawn).\n\n"
+        "Check the FDA section above."
     )
 
     try:
