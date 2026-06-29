@@ -90,6 +90,56 @@ def resolve_official_symbol(term):
     return None, None
 
 
+def fetch_fda_approval(drug_name):
+    """Look up a drug in openFDA (Drugs@FDA). Returns FDA info dict or None.
+
+    Confirms the drug is FDA-approved and returns brand name, sponsor,
+    and the earliest approval date.
+    """
+    try:
+        url = (
+            "https://api.fda.gov/drug/drugsfda.json?search="
+            f"openfda.generic_name:{urllib.parse.quote(drug_name.lower())}&limit=20"
+        )
+        results = requests.get(url).json().get("results", [])
+        if not results:
+            return None
+
+        # Among all applications, pick the one with the earliest approval date
+        # (the original drug, not a newer combination product).
+        best = None
+        for entry in results:
+            approval_dates = [
+                s.get("submission_status_date")
+                for s in entry.get("submissions", [])
+                if s.get("submission_status") == "AP" and s.get("submission_status_date")
+            ]
+            if not approval_dates:
+                continue
+            earliest = min(approval_dates)
+            if best is None or earliest < best["_date"]:
+                openfda = entry.get("openfda", {})
+                brand = openfda.get("brand_name", [])
+                best = {
+                    "_date": earliest,
+                    "brand_name": brand[0] if brand else None,
+                    "sponsor": entry.get("sponsor_name"),
+                    "application_number": entry.get("application_number"),
+                }
+
+        if best is None:
+            return None
+
+        d = best["_date"]
+        if len(d) == 8:
+            best["approval_date"] = f"{d[:4]}-{d[4:6]}-{d[6:]}"
+        else:
+            best["approval_date"] = d
+        return best
+    except Exception:
+        return None
+
+
 def fetch_uniprot(symbol):
     """Fetch the reviewed human UniProt entry for an exact gene symbol."""
     url = (
@@ -319,6 +369,8 @@ if target:
         f"Drugs and clinical candidates targeting **{target_key}**, from the Open Targets Platform."
     )
 
+    approved_drug_names = []  # filled below, used by the FDA section
+
     try:
         ot_url = "https://api.platform.opentargets.org/api/v4/graphql"
 
@@ -391,6 +443,11 @@ if target:
                 others = [r for r in sorted_rows if r[1].get("maxClinicalStage") != "APPROVAL"]
                 shown = approved + others[:max(0, 5 - len(approved))]
 
+                # Remember approved drug names for the FDA section
+                approved_drug_names = [
+                    r[1].get("drug", {}).get("name", "") for r in approved
+                ]
+
                 st.markdown(
                     f"**Showing {len(shown)} of {len(unique)} drug(s)** "
                     f"(all approved + top candidates by clinical stage):"
@@ -432,6 +489,53 @@ if target:
 
     except Exception as e:
         st.error(f"Open Targets Error: {e}")
+
+    # --- FDA-Approved Drugs (openFDA) ---
+    st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
+    st.subheader("FDA-Approved Drugs (openFDA)")
+    st.caption(
+        f"Approved drugs targeting **{target_key}** (from Open Targets), "
+        "confirmed against the FDA's Drugs@FDA database."
+    )
+
+    try:
+        if not approved_drug_names:
+            st.warning("No approved drugs found for this target.")
+        else:
+            fda_found = 0
+            for drug_name in approved_drug_names:
+                fda = fetch_fda_approval(drug_name)
+                if fda is None:
+                    continue  # not found in FDA database (may be approved elsewhere)
+                fda_found += 1
+
+                st.markdown(
+                    f"<p style='font-size:24px; font-weight:bold; margin-bottom:2px'>"
+                    f"{drug_name.title()}</p>",
+                    unsafe_allow_html=True
+                )
+                if fda.get("brand_name"):
+                    st.markdown(f"**Brand name:** {fda['brand_name']}")
+                if fda.get("sponsor"):
+                    st.markdown(f"**Sponsor:** {fda['sponsor'].title()}")
+                if fda.get("approval_date"):
+                    st.markdown(f"**First FDA approval:** {fda['approval_date']}")
+                app_no = fda.get("application_number")
+                if app_no:
+                    st.markdown(
+                        f"[View on Drugs@FDA]"
+                        f"(https://www.accessdata.fda.gov/scripts/cder/daf/index.cfm?event=overview.process&ApplNo={app_no.replace('BLA','').replace('NDA','').replace('ANDA','')})"
+                    )
+                st.divider()
+
+            if fda_found == 0:
+                st.info(
+                    "None of the approved drugs for this target were found in the "
+                    "FDA database (they may be approved only outside the US)."
+                )
+
+    except Exception as e:
+        st.error(f"openFDA Error: {e}")
 
     # --- Most Cited Publications ---
     st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
