@@ -31,6 +31,57 @@ target = st.text_input(
 
 THICK_DIVIDER = "<hr style='border:none; border-top:4px solid #444; margin:32px 0 16px 0'>"
 
+# Greek letter expansions for trailing abbreviations (e.g. FRa -> FR alpha)
+GREEK_LETTERS = {
+    "A": "alpha", "B": "beta", "G": "gamma",
+    "D": "delta", "E": "epsilon",
+}
+
+
+def make_search_variants(term):
+    """Generate search variants, expanding a trailing greek-letter abbreviation."""
+    variants = [term]
+    if len(term) > 1 and term[-1] in GREEK_LETTERS:
+        base = term[:-1]
+        word = GREEK_LETTERS[term[-1]]
+        variants.append(f"{base} {word}")  # e.g. "FR alpha"
+        variants.append(f"{base}{word}")   # e.g. "FRalpha"
+    return variants
+
+
+def resolve_uniprot(term):
+    """Find a UniProt entry. Returns (protein, match_type, used_query).
+
+    Tries exact gene matches first (precise), then falls back to full-text
+    search (labeled as a closest match that should be verified).
+    """
+    variants = make_search_variants(term)
+
+    # Pass 1: exact gene-name match for each variant
+    for v in variants:
+        url = (
+            "https://rest.uniprot.org/uniprotkb/search?"
+            f"query=gene_exact:{urllib.parse.quote(v)}"
+            "+AND+organism_id:9606+AND+reviewed:true&format=json&size=1"
+        )
+        results = requests.get(url).json().get("results", [])
+        if results:
+            return results[0], "exact", v
+
+    # Pass 2: full-text search for each variant (closest match)
+    for v in variants:
+        url = (
+            "https://rest.uniprot.org/uniprotkb/search?"
+            f"query={urllib.parse.quote(v)}"
+            "+AND+organism_id:9606+AND+reviewed:true&format=json&size=1"
+        )
+        results = requests.get(url).json().get("results", [])
+        if results:
+            return results[0], "closest", v
+
+    return None, None, None
+
+
 if target:
     target_key = target.upper()
     st.success(f"Target entered: {target_key}")
@@ -41,19 +92,16 @@ if target:
 
     uniprot_id = None
     try:
-        uniprot_url = (
-            "https://rest.uniprot.org/uniprotkb/search?"
-            f"query=gene_exact:{target_key}+AND+organism_id:9606+AND+reviewed:true"
-            "&format=json&size=1"
-        )
-        uniprot_response = requests.get(uniprot_url)
-        uniprot_data = uniprot_response.json()
-        results = uniprot_data.get("results", [])
+        protein, match_type, used_query = resolve_uniprot(target_key)
 
-        if not results:
-            st.warning("No UniProt protein information found.")
+        if protein is None:
+            st.warning(f"No protein found for '{target_key}' (also tried alpha/beta expansions).")
         else:
-            protein = results[0]
+            if match_type == "closest":
+                st.info(
+                    f"No exact gene match for '{target_key}'. "
+                    f"Showing the closest match from a search for '{used_query}' — please verify."
+                )
             uniprot_id = protein.get("primaryAccession", "Unknown")
             organism = protein.get("organism", {}).get("scientificName", "Unknown")
             protein_length = protein.get("sequence", {}).get("length", "Unknown")
@@ -73,6 +121,10 @@ if target:
 
             genes = protein.get("genes", [])
             gene_name = genes[0].get("geneName", {}).get("value", "Unknown") if genes else "Unknown"
+
+            # Use the official gene symbol for all downstream searches
+            if gene_name != "Unknown":
+                target_key = gene_name.upper()
 
             # Get function from comments
             function_text = ""
