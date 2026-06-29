@@ -37,10 +37,34 @@ GREEK_LETTERS = {
     "D": "delta", "E": "epsilon",
 }
 
+# Common antibody-target shorthands that don't resolve cleanly in UniProt search.
+# Maps the typed alias (uppercase) -> official gene symbol.
+TARGET_ALIASES = {
+    "FRA": "FOLR1", "FRALPHA": "FOLR1", "FOLRA": "FOLR1",
+    "FRB": "FOLR2", "FRBETA": "FOLR2",
+    "PD1": "PDCD1", "PD-1": "PDCD1",
+    "PDL1": "CD274", "PD-L1": "CD274",
+    "PDL2": "PDCD1LG2", "PD-L2": "PDCD1LG2",
+    "HER1": "EGFR", "ERBB1": "EGFR",
+    "HER2": "ERBB2", "NEU": "ERBB2",
+    "HER3": "ERBB3", "HER4": "ERBB4",
+    "FCRN": "FCGRT",
+    "TROP2": "TACSTD2",
+    "CLDN18.2": "CLDN18", "CLDN182": "CLDN18",
+    "B7H3": "CD276", "B7-H3": "CD276",
+    "B7H4": "VTCN1", "B7-H4": "VTCN1",
+    "EPCAM": "EPCAM", "CEA": "CEACAM5",
+    "GD2": "B4GALNT1",
+    "BCMA": "TNFRSF17", "CD319": "SLAMF7",
+}
+
 
 def make_search_variants(term):
-    """Generate search variants, expanding a trailing greek-letter abbreviation."""
-    variants = [term]
+    """Generate search variants: known alias first, then greek-letter expansions."""
+    variants = []
+    if term in TARGET_ALIASES:
+        variants.append(TARGET_ALIASES[term])
+    variants.append(term)
     if len(term) > 1 and term[-1] in GREEK_LETTERS:
         base = term[:-1]
         word = GREEK_LETTERS[term[-1]]
