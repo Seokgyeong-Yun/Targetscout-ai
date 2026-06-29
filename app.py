@@ -244,10 +244,10 @@ if target:
 
             if canonical_sequence:
                 with st.expander("Canonical Sequence (FASTA)"):
-                    # Wrap sequence at 60 residues per line (standard FASTA format)
+                    # Wrap sequence at 120 residues per line
                     wrapped = "\n".join(
-                        canonical_sequence[i:i + 60]
-                        for i in range(0, len(canonical_sequence), 60)
+                        canonical_sequence[i:i + 120]
+                        for i in range(0, len(canonical_sequence), 120)
                     )
                     st.code(f">{uniprot_id}|{gene_name}\n{wrapped}", language=None)
                     st.markdown(
