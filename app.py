@@ -9,8 +9,27 @@ st.set_page_config(
     layout="wide"
 )
 
+SITE_URL = "https://targetscout-ai-2r93cygucnqxntbd5ta2q.streamlit.app"
+
 st.title("🧬 TargetScout AI")
 st.subheader("AI-powered antibody target evaluation platform for drug discovery research")
+
+# Click-to-copy site link button
+st.components.v1.html(
+    f"""
+    <button id="copyBtn"
+        onclick="navigator.clipboard.writeText('{SITE_URL}').then(() => {{
+            const b = document.getElementById('copyBtn');
+            b.innerText = '✅ Link copied!';
+            setTimeout(() => b.innerText = '🔗 Copy site link', 1500);
+        }})"
+        style="background:#f0f2f6; border:1px solid #ccc; border-radius:8px;
+               padding:6px 14px; font-size:15px; cursor:pointer; font-family:inherit;">
+        🔗 Copy site link
+    </button>
+    """,
+    height=45,
+)
 
 st.markdown("""
 TargetScout AI is a Bio-AI web application designed to support early-stage
