@@ -96,9 +96,15 @@ if target:
 
             if canonical_sequence:
                 with st.expander("Canonical Sequence (FASTA)"):
-                    st.code(
-                        f">{uniprot_id}|{gene_name}\n" + canonical_sequence,
-                        language=None
+                    # Wrap sequence at 60 residues per line (standard FASTA format)
+                    wrapped = "\n".join(
+                        canonical_sequence[i:i + 60]
+                        for i in range(0, len(canonical_sequence), 60)
+                    )
+                    st.code(f">{uniprot_id}|{gene_name}\n{wrapped}", language=None)
+                    st.markdown(
+                        f"Source: [UniProt FASTA]"
+                        f"(https://rest.uniprot.org/uniprotkb/{uniprot_id}.fasta)"
                     )
 
     except Exception as e:
