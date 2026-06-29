@@ -476,12 +476,15 @@ if target:
                         )
                     st.divider()
 
-                st.markdown(
-                    f"<a href='https://platform.opentargets.org/target/{ot_ensembl_id}/known_drugs' "
-                    f"target='_blank' style='font-size:22px; font-weight:bold'>"
-                    f"💊 View more approved drugs →</a>",
-                    unsafe_allow_html=True
-                )
+                # Drugs@FDA has no target-based search, so only link out (to the
+                # FDA search page) when there are more approved drugs than shown.
+                if len(fda_drugs) > len(shown):
+                    st.markdown(
+                        f"<a href='https://www.accessdata.fda.gov/scripts/cder/daf/' "
+                        f"target='_blank' style='font-size:22px; font-weight:bold'>"
+                        f"💊 {len(fda_drugs)} FDA-approved in total — search more on Drugs@FDA →</a>",
+                        unsafe_allow_html=True
+                    )
 
     except Exception as e:
         st.error(f"openFDA Error: {e}")
