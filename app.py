@@ -366,8 +366,37 @@ if target:
             if not rows:
                 st.warning("No drugs or clinical candidates found for this target.")
             else:
-                st.markdown(f"**{len(rows)} drug(s)/candidate(s) found:**")
+                # Rank clinical stages from highest (approved) to lowest
+                stage_rank = {
+                    "APPROVAL": 9, "PHASE_4": 8, "PHASE_3": 7, "PHASE_2_3": 6,
+                    "PHASE_2": 5, "PHASE_1_2": 4, "PHASE_1": 3,
+                    "EARLY_PHASE_1": 2, "PRECLINICAL": 1,
+                }
+
+                # Deduplicate by drug id (keep the highest-stage row per drug)
+                unique = {}
                 for row in rows:
+                    drug_id = row.get("drug", {}).get("id", "")
+                    if not drug_id:
+                        continue
+                    rank = stage_rank.get(row.get("maxClinicalStage", ""), 0)
+                    if drug_id not in unique or rank > unique[drug_id][0]:
+                        unique[drug_id] = (rank, row)
+
+                # Sort by stage (highest first)
+                sorted_rows = sorted(unique.values(), key=lambda x: x[0], reverse=True)
+
+                # Always show every approved drug, plus enough others to reach 5
+                approved = [r for r in sorted_rows if r[1].get("maxClinicalStage") == "APPROVAL"]
+                others = [r for r in sorted_rows if r[1].get("maxClinicalStage") != "APPROVAL"]
+                shown = approved + others[:max(0, 5 - len(approved))]
+
+                st.markdown(
+                    f"**Showing {len(shown)} of {len(unique)} drug(s)** "
+                    f"(all approved + top candidates by clinical stage):"
+                )
+
+                for _, row in shown:
                     drug = row.get("drug", {})
                     name = drug.get("name", "Unknown")
                     drug_id = drug.get("id", "")
@@ -395,9 +424,9 @@ if target:
                     st.divider()
 
                 st.markdown(
-                    f"<a href='https://platform.opentargets.org/search?q={target_key}&page=1&entities=drug' "
+                    f"<a href='https://platform.opentargets.org/target/{ensembl_id}/known_drugs' "
                     f"target='_blank' style='font-size:22px; font-weight:bold'>"
-                    f"💊 View all drugs on Open Targets →</a>",
+                    f"💊 View all {len(unique)} drugs on Open Targets →</a>",
                     unsafe_allow_html=True
                 )
 
