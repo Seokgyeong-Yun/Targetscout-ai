@@ -362,14 +362,12 @@ if target:
     except Exception as e:
         st.error(f"PDB Error: {e}")
 
-    # --- Competitive Drug (Open Targets) ---
-    st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
-    st.subheader("Competitive Drug (Open Targets)")
-    st.caption(
-        f"Drugs and clinical candidates targeting **{target_key}**, from the Open Targets Platform."
-    )
-
-    approved_drug_names = []  # filled below, used by the FDA section
+    # --- Fetch Open Targets drug data once (shared by FDA + Competitive sections) ---
+    ot_ensembl_id = None
+    ot_sorted_rows = []      # list of (rank, row), highest stage first
+    ot_unique_count = 0
+    approved_drug_names = []  # all approved drug names, used by the FDA section
+    ot_error = None
 
     try:
         ot_url = "https://api.platform.opentargets.org/api/v4/graphql"
@@ -384,20 +382,15 @@ if target:
         }
         ot_search_resp = requests.post(ot_url, json=ot_search_query)
         hits = ot_search_resp.json().get("data", {}).get("search", {}).get("hits", [])
-
-        # Pick the hit whose name exactly matches the target
-        ensembl_id = None
         for hit in hits:
             if hit.get("name", "").upper() == target_key:
-                ensembl_id = hit.get("id")
+                ot_ensembl_id = hit.get("id")
                 break
-        if ensembl_id is None and hits:
-            ensembl_id = hits[0].get("id")
+        if ot_ensembl_id is None and hits:
+            ot_ensembl_id = hits[0].get("id")
 
-        if ensembl_id is None:
-            st.warning("No target found on Open Targets.")
-        else:
-            # Step 2: fetch drugs / clinical candidates for the target
+        # Step 2: fetch drugs / clinical candidates for the target
+        if ot_ensembl_id is not None:
             ot_drug_query = {
                 "query": (
                     "query($id:String!){target(ensemblId:$id){"
@@ -405,102 +398,49 @@ if target:
                     "drug{id name drugType description "
                     "mechanismsOfAction{rows{mechanismOfAction}}}}}}}"
                 ),
-                "variables": {"id": ensembl_id}
+                "variables": {"id": ot_ensembl_id}
             }
             ot_drug_resp = requests.post(ot_url, json=ot_drug_query)
-            candidates = (
-                ot_drug_resp.json()
-                .get("data", {}).get("target", {})
-                .get("drugAndClinicalCandidates", {})
+            rows = (
+                ot_drug_resp.json().get("data", {}).get("target", {})
+                .get("drugAndClinicalCandidates", {}).get("rows", [])
             )
-            rows = candidates.get("rows", [])
 
-            if not rows:
-                st.warning("No drugs or clinical candidates found for this target.")
-            else:
-                # Rank clinical stages from highest (approved) to lowest
-                stage_rank = {
-                    "APPROVAL": 9, "PHASE_4": 8, "PHASE_3": 7, "PHASE_2_3": 6,
-                    "PHASE_2": 5, "PHASE_1_2": 4, "PHASE_1": 3,
-                    "EARLY_PHASE_1": 2, "PRECLINICAL": 1,
-                }
+            stage_rank = {
+                "APPROVAL": 9, "PHASE_4": 8, "PHASE_3": 7, "PHASE_2_3": 6,
+                "PHASE_2": 5, "PHASE_1_2": 4, "PHASE_1": 3,
+                "EARLY_PHASE_1": 2, "PRECLINICAL": 1,
+            }
+            # Deduplicate by drug id (keep the highest-stage row per drug)
+            unique = {}
+            for row in rows:
+                drug_id = row.get("drug", {}).get("id", "")
+                if not drug_id:
+                    continue
+                rank = stage_rank.get(row.get("maxClinicalStage", ""), 0)
+                if drug_id not in unique or rank > unique[drug_id][0]:
+                    unique[drug_id] = (rank, row)
 
-                # Deduplicate by drug id (keep the highest-stage row per drug)
-                unique = {}
-                for row in rows:
-                    drug_id = row.get("drug", {}).get("id", "")
-                    if not drug_id:
-                        continue
-                    rank = stage_rank.get(row.get("maxClinicalStage", ""), 0)
-                    if drug_id not in unique or rank > unique[drug_id][0]:
-                        unique[drug_id] = (rank, row)
-
-                # Sort by stage (highest first)
-                sorted_rows = sorted(unique.values(), key=lambda x: x[0], reverse=True)
-
-                # Always show every approved drug, plus enough others to reach 5
-                approved = [r for r in sorted_rows if r[1].get("maxClinicalStage") == "APPROVAL"]
-                others = [r for r in sorted_rows if r[1].get("maxClinicalStage") != "APPROVAL"]
-                shown = approved + others[:max(0, 5 - len(approved))]
-
-                # Remember approved drug names for the FDA section
-                approved_drug_names = [
-                    r[1].get("drug", {}).get("name", "") for r in approved
-                ]
-
-                st.markdown(
-                    f"**Showing {len(shown)} of {len(unique)} drug(s)** "
-                    f"(all approved + top candidates by clinical stage):"
-                )
-
-                for _, row in shown:
-                    drug = row.get("drug", {})
-                    name = drug.get("name", "Unknown")
-                    drug_id = drug.get("id", "")
-                    drug_type = drug.get("drugType", "Unknown")
-                    description = drug.get("description", "")
-                    max_stage = row.get("maxClinicalStage", "").replace("_", " ").title()
-
-                    moa_rows = drug.get("mechanismsOfAction", {}).get("rows", [])
-                    moa_list = [m.get("mechanismOfAction", "") for m in moa_rows]
-                    moa_text = ", ".join(moa_list) if moa_list else "N/A"
-
-                    st.markdown(
-                        f"<p style='font-size:26px; font-weight:bold; margin-bottom:2px'>"
-                        f"{name} <span style='font-size:15px; color:gray'>({drug_type})</span></p>",
-                        unsafe_allow_html=True
-                    )
-                    if description:
-                        st.markdown(f"{description}")
-                    st.markdown(f"**Max stage:** {max_stage}")
-                    st.markdown(f"**Mechanism of action:** {moa_text}")
-                    if drug_id:
-                        st.markdown(
-                            f"[View on Open Targets](https://platform.opentargets.org/drug/{drug_id})"
-                        )
-                    st.divider()
-
-                st.markdown(
-                    f"<a href='https://platform.opentargets.org/target/{ensembl_id}/known_drugs' "
-                    f"target='_blank' style='font-size:22px; font-weight:bold'>"
-                    f"💊 View all {len(unique)} drugs on Open Targets →</a>",
-                    unsafe_allow_html=True
-                )
-
+            ot_unique_count = len(unique)
+            ot_sorted_rows = sorted(unique.values(), key=lambda x: x[0], reverse=True)
+            approved_drug_names = [
+                r[1].get("drug", {}).get("name", "")
+                for r in ot_sorted_rows
+                if r[1].get("maxClinicalStage") == "APPROVAL"
+            ]
     except Exception as e:
-        st.error(f"Open Targets Error: {e}")
+        ot_error = str(e)
 
     # --- FDA-Approved Drugs (openFDA) ---
     st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
     st.subheader("FDA-Approved Drugs (openFDA)")
-    st.caption(
-        f"Approved drugs targeting **{target_key}** (from Open Targets), "
-        "confirmed against the FDA's Drugs@FDA database."
-    )
+    st.caption("Shows only FDA-approved drugs targeting this target.")
 
     try:
-        if not approved_drug_names:
-            st.warning("No approved drugs found for this target.")
+        if ot_error:
+            st.error(f"openFDA Error: {ot_error}")
+        elif not approved_drug_names:
+            st.warning("승인된 약물이 없습니다.")
         else:
             fda_found = 0
             for drug_name in approved_drug_names:
@@ -529,13 +469,69 @@ if target:
                 st.divider()
 
             if fda_found == 0:
-                st.info(
-                    "None of the approved drugs for this target were found in the "
-                    "FDA database (they may be approved only outside the US)."
-                )
+                st.warning("승인된 약물이 없습니다.")
 
     except Exception as e:
         st.error(f"openFDA Error: {e}")
+
+    # --- Competitive Drug (Open Targets) ---
+    st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
+    st.subheader("Competitive Drug (Open Targets)")
+    st.caption(
+        f"Drugs and clinical candidates targeting **{target_key}**, from Open Targets. "
+        "⚠️ Approval status here may differ slightly from the FDA (Open Targets aggregates "
+        "global regulators and may not be fully up to date)."
+    )
+
+    try:
+        if ot_error:
+            st.error(f"Open Targets Error: {ot_error}")
+        elif not ot_sorted_rows:
+            st.warning("No drugs or clinical candidates found for this target.")
+        else:
+            # Show top 5 by clinical stage (highest first)
+            shown = ot_sorted_rows[:5]
+            st.markdown(
+                f"**Showing {len(shown)} of {ot_unique_count} drug(s)** "
+                f"(top candidates by clinical stage):"
+            )
+
+            for _, row in shown:
+                drug = row.get("drug", {})
+                name = drug.get("name", "Unknown")
+                drug_id = drug.get("id", "")
+                drug_type = drug.get("drugType", "Unknown")
+                description = drug.get("description", "")
+                max_stage = row.get("maxClinicalStage", "").replace("_", " ").title()
+
+                moa_rows = drug.get("mechanismsOfAction", {}).get("rows", [])
+                moa_list = [m.get("mechanismOfAction", "") for m in moa_rows]
+                moa_text = ", ".join(moa_list) if moa_list else "N/A"
+
+                st.markdown(
+                    f"<p style='font-size:26px; font-weight:bold; margin-bottom:2px'>"
+                    f"{name} <span style='font-size:15px; color:gray'>({drug_type})</span></p>",
+                    unsafe_allow_html=True
+                )
+                if description:
+                    st.markdown(f"{description}")
+                st.markdown(f"**Max stage:** {max_stage}")
+                st.markdown(f"**Mechanism of action:** {moa_text}")
+                if drug_id:
+                    st.markdown(
+                        f"[View on Open Targets](https://platform.opentargets.org/drug/{drug_id})"
+                    )
+                st.divider()
+
+            st.markdown(
+                f"<a href='https://platform.opentargets.org/target/{ot_ensembl_id}/known_drugs' "
+                f"target='_blank' style='font-size:22px; font-weight:bold'>"
+                f"💊 View all {ot_unique_count} drugs on Open Targets →</a>",
+                unsafe_allow_html=True
+            )
+
+    except Exception as e:
+        st.error(f"Open Targets Error: {e}")
 
     # --- Most Cited Publications ---
     st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
