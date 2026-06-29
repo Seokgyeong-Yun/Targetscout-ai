@@ -54,6 +54,7 @@ if target:
             uniprot_id = protein.get("primaryAccession", "Unknown")
             organism = protein.get("organism", {}).get("scientificName", "Unknown")
             protein_length = protein.get("sequence", {}).get("length", "Unknown")
+            canonical_sequence = protein.get("sequence", {}).get("value", "")
 
             protein_description = protein.get("proteinDescription", {})
             recommended_name = "Unknown"
@@ -92,6 +93,13 @@ if target:
                 if function_text:
                     st.markdown("**Function**")
                     st.markdown(function_text)
+
+            if canonical_sequence:
+                with st.expander("Canonical Sequence (FASTA)"):
+                    st.code(
+                        f">{uniprot_id}|{gene_name}\n" + canonical_sequence,
+                        language=None
+                    )
 
     except Exception as e:
         st.error(f"UniProt Error: {e}")
@@ -216,6 +224,97 @@ if target:
 
     except Exception as e:
         st.error(f"PDB Error: {e}")
+
+    # --- Competitive Landscape (Open Targets) ---
+    st.subheader("Competitive Landscape (Open Targets)")
+    st.caption(
+        f"Drugs and clinical candidates targeting **{target_key}**, from the Open Targets Platform."
+    )
+
+    try:
+        ot_url = "https://api.platform.opentargets.org/api/v4/graphql"
+
+        # Step 1: resolve gene symbol to Ensembl target ID
+        ot_search_query = {
+            "query": (
+                "query($q:String!){search(queryString:$q,entityNames:[\"target\"])"
+                "{hits{id name entity}}}"
+            ),
+            "variables": {"q": target_key}
+        }
+        ot_search_resp = requests.post(ot_url, json=ot_search_query)
+        hits = ot_search_resp.json().get("data", {}).get("search", {}).get("hits", [])
+
+        # Pick the hit whose name exactly matches the target
+        ensembl_id = None
+        for hit in hits:
+            if hit.get("name", "").upper() == target_key:
+                ensembl_id = hit.get("id")
+                break
+        if ensembl_id is None and hits:
+            ensembl_id = hits[0].get("id")
+
+        if ensembl_id is None:
+            st.warning("No target found on Open Targets.")
+        else:
+            # Step 2: fetch drugs / clinical candidates for the target
+            ot_drug_query = {
+                "query": (
+                    "query($id:String!){target(ensemblId:$id){"
+                    "drugAndClinicalCandidates{count rows{maxClinicalStage "
+                    "drug{id name drugType description "
+                    "mechanismsOfAction{rows{mechanismOfAction}}}}}}}"
+                ),
+                "variables": {"id": ensembl_id}
+            }
+            ot_drug_resp = requests.post(ot_url, json=ot_drug_query)
+            candidates = (
+                ot_drug_resp.json()
+                .get("data", {}).get("target", {})
+                .get("drugAndClinicalCandidates", {})
+            )
+            rows = candidates.get("rows", [])
+
+            if not rows:
+                st.warning("No drugs or clinical candidates found for this target.")
+            else:
+                st.markdown(f"**{len(rows)} drug(s)/candidate(s) found:**")
+                for row in rows:
+                    drug = row.get("drug", {})
+                    name = drug.get("name", "Unknown")
+                    drug_id = drug.get("id", "")
+                    drug_type = drug.get("drugType", "Unknown")
+                    description = drug.get("description", "")
+                    max_stage = row.get("maxClinicalStage", "").replace("_", " ").title()
+
+                    moa_rows = drug.get("mechanismsOfAction", {}).get("rows", [])
+                    moa_list = [m.get("mechanismOfAction", "") for m in moa_rows]
+                    moa_text = ", ".join(moa_list) if moa_list else "N/A"
+
+                    st.markdown(
+                        f"<p style='font-size:18px; font-weight:bold; margin-bottom:2px'>"
+                        f"{name} <span style='font-size:14px; color:gray'>({drug_type})</span></p>",
+                        unsafe_allow_html=True
+                    )
+                    if description:
+                        st.markdown(f"{description}")
+                    st.markdown(f"**Max stage:** {max_stage}")
+                    st.markdown(f"**Mechanism of action:** {moa_text}")
+                    if drug_id:
+                        st.markdown(
+                            f"[View on Open Targets](https://platform.opentargets.org/drug/{drug_id})"
+                        )
+                    st.divider()
+
+                st.markdown(
+                    f"<a href='https://platform.opentargets.org/search?q={target_key}&page=1&entities=drug' "
+                    f"target='_blank' style='font-size:22px; font-weight:bold'>"
+                    f"💊 View all drugs on Open Targets →</a>",
+                    unsafe_allow_html=True
+                )
+
+    except Exception as e:
+        st.error(f"Open Targets Error: {e}")
 
     # --- Most Cited Publications ---
     st.subheader("Most Cited Publications (PubMed)")
