@@ -550,6 +550,63 @@ if target:
     except Exception as e:
         st.error(f"Open Targets Error: {e}")
 
+    # --- Clinical Trials (ClinicalTrials.gov) ---
+    st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
+    st.subheader("Clinical Trials (ClinicalTrials.gov)")
+    st.caption(
+        f"Recent clinical trials for **{target_key} + antibody**, newest update first."
+    )
+
+    try:
+        ct_url = (
+            "https://clinicaltrials.gov/api/v2/studies?"
+            f"query.term={urllib.parse.quote(target_key + ' antibody')}"
+            "&pageSize=5&countTotal=true&sort=LastUpdatePostDate:desc"
+        )
+        ct_data = requests.get(ct_url).json()
+        studies = ct_data.get("studies", [])
+        total = ct_data.get("totalCount")
+
+        if not studies:
+            st.warning("No clinical trials found.")
+        else:
+            for s in studies:
+                p = s.get("protocolSection", {})
+                idm = p.get("identificationModule", {})
+                status = p.get("statusModule", {}).get("overallStatus", "")
+                phases = p.get("designModule", {}).get("phases", [])
+                conditions = p.get("conditionsModule", {}).get("conditions", [])
+
+                nct_id = idm.get("nctId", "")
+                title = idm.get("briefTitle", "No title")
+                phase_text = ", ".join(ph.replace("PHASE", "Phase ") for ph in phases) if phases else "N/A"
+                status_text = status.replace("_", " ").title() if status else "Unknown"
+
+                st.markdown(
+                    f"<p style='font-size:18px; font-weight:bold; margin-bottom:2px'>{title}</p>",
+                    unsafe_allow_html=True
+                )
+                meta = f"**Status:** {status_text} · **Phase:** {phase_text}"
+                st.markdown(meta)
+                if conditions:
+                    st.markdown(f"**Conditions:** {', '.join(conditions[:4])}")
+                st.markdown(f"[View on ClinicalTrials.gov](https://clinicaltrials.gov/study/{nct_id})")
+                st.divider()
+
+            ct_search_url = (
+                "https://clinicaltrials.gov/search?term="
+                + urllib.parse.quote(target_key + " antibody")
+            )
+            more_label = f"🧪 View all {total} trials on ClinicalTrials.gov →" if total else "🧪 View more trials on ClinicalTrials.gov →"
+            st.markdown(
+                f"<a href='{ct_search_url}' target='_blank' "
+                f"style='font-size:22px; font-weight:bold'>{more_label}</a>",
+                unsafe_allow_html=True
+            )
+
+    except Exception as e:
+        st.error(f"ClinicalTrials.gov Error: {e}")
+
     # --- Most Cited Publications ---
     st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
     st.subheader("Most Cited Publications (PubMed)")
