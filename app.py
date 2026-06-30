@@ -9,7 +9,7 @@ st.set_page_config(
     layout="wide"
 )
 
-SITE_URL = "https://targetscout-ai-2r93cygucnqxntbd5ta2q.streamlit.app"
+SITE_URL = "https://targetscout-ai-2r93scygucnqwntbd5ta2q.streamlit.app"
 
 st.title("🧬 TargetScout AI")
 st.subheader("AI-powered antibody target evaluation platform for drug discovery research")

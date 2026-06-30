@@ -2,7 +2,7 @@
 
 Bio-AI platform for antibody target evaluation and research intelligence.
 
-🔗 **Live app:** https://targetscout-ai-2r93cygucnqxntbd5ta2q.streamlit.app
+🔗 **Live app:** https://targetscout-ai-2r93scygucnqwntbd5ta2q.streamlit.app
 
 ---
 
