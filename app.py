@@ -160,10 +160,10 @@ def fetch_fda_approval(drug_name):
 
 
 def generate_ai_assessment(ctx):
-    """Call Groq (free tier) to produce a target assessment.
+    """Call Groq (free tier) to produce a structured target assessment.
 
     Reads the API key from Streamlit secrets ("GROQ_API_KEY").
-    Returns the generated text, or an error string starting with 'ERROR:'.
+    Returns a parsed dict, or an error string starting with 'ERROR:'.
     """
     api_key = st.secrets.get("GROQ_API_KEY", "")
     if not api_key:
@@ -190,14 +190,13 @@ def generate_ai_assessment(ctx):
 
     prompt = (
         "You are assisting an antibody drug-discovery researcher. Based ONLY on the "
-        "data below, give a concise assessment of this antigen as an antibody drug "
-        "target. Structure your answer as:\n"
-        "1. Overall suitability score (1-10) with a one-line justification\n"
-        "2. Opportunities (2-4 bullet points)\n"
-        "3. Risks / challenges (2-4 bullet points)\n"
-        "4. Competitive crowding (is this target already crowded?)\n"
-        "Be objective and note where evidence is limited. Do not invent facts not "
-        "supported by the data.\n\n"
+        "data below, assess this antigen as an antibody drug target.\n"
+        "Respond in JSON with exactly these keys:\n"
+        '{"score": <integer 1-10>, "justification": "<one sentence>", '
+        '"opportunities": ["<point>", ...], "risks": ["<point>", ...], '
+        '"competitive_crowding": "<one to two sentences>"}\n'
+        "Give 2-4 items each for opportunities and risks. Be objective, note where "
+        "evidence is limited, and do not invent facts not supported by the data.\n\n"
         f"=== DATA ===\n{context}"
     )
 
@@ -208,12 +207,14 @@ def generate_ai_assessment(ctx):
             "model": "llama-3.3-70b-versatile",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.4,
+            "response_format": {"type": "json_object"},
         }
         resp = requests.post(url, headers=headers, json=body, timeout=60)
         data = resp.json()
         if "choices" not in data:
             return f"ERROR: {data.get('error', {}).get('message', 'Unexpected response')}"
-        return data["choices"][0]["message"]["content"]
+        content = data["choices"][0]["message"]["content"]
+        return json.loads(content)
     except Exception as e:
         return f"ERROR: {e}"
 
@@ -828,13 +829,68 @@ if target:
     if st.button(f"🧠 Generate AI assessment for {target_key}"):
         with st.spinner("Analyzing target with AI..."):
             result = generate_ai_assessment(ai_ctx)
-        if result.startswith("ERROR:"):
+
+        if isinstance(result, str) and result.startswith("ERROR:"):
             st.error(
                 result + "\n\nMake sure a Groq API key is set in Streamlit secrets "
                 "as `GROQ_API_KEY`."
             )
         else:
-            st.markdown(result)
+            score = result.get("score", 0)
+            try:
+                score = int(score)
+            except (ValueError, TypeError):
+                score = 0
+
+            # Colour the score box by band
+            if score >= 8:
+                bg, border = "#d4edda", "#28a745"   # green
+            elif score >= 5:
+                bg, border = "#fff3cd", "#ffc107"   # yellow
+            else:
+                bg, border = "#f8d7da", "#dc3545"   # red
+
+            # Score box
+            st.markdown(
+                f"<div style='background:{bg}; border:2px solid {border}; border-radius:12px; "
+                f"padding:18px; text-align:center; margin-bottom:16px'>"
+                f"<div style='font-size:16px; color:#555'>Suitability Score</div>"
+                f"<div style='font-size:56px; font-weight:bold; color:{border}'>{score}<span style='font-size:24px; color:#888'>/10</span></div>"
+                f"<div style='font-size:15px; color:#444'>{result.get('justification', '')}</div>"
+                f"</div>",
+                unsafe_allow_html=True
+            )
+
+            col_o, col_r = st.columns(2)
+            with col_o:
+                opp_items = "".join(f"<li>{o}</li>" for o in result.get("opportunities", []))
+                st.markdown(
+                    f"<div style='background:#eafaf1; border:2px solid #28a745; border-radius:12px; padding:16px'>"
+                    f"<div style='font-size:18px; font-weight:bold; color:#1e7e34; margin-bottom:6px'>✅ Opportunities</div>"
+                    f"<ul style='margin:0; padding-left:20px; font-size:15px'>{opp_items}</ul>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+            with col_r:
+                risk_items = "".join(f"<li>{r}</li>" for r in result.get("risks", []))
+                st.markdown(
+                    f"<div style='background:#fdeaea; border:2px solid #dc3545; border-radius:12px; padding:16px'>"
+                    f"<div style='font-size:18px; font-weight:bold; color:#b02a37; margin-bottom:6px'>⚠️ Risks / Challenges</div>"
+                    f"<ul style='margin:0; padding-left:20px; font-size:15px'>{risk_items}</ul>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+            crowding = result.get("competitive_crowding", "")
+            if crowding:
+                st.markdown(
+                    f"<div style='background:#e7f1ff; border:2px solid #0d6efd; border-radius:12px; "
+                    f"padding:16px; margin-top:16px'>"
+                    f"<div style='font-size:18px; font-weight:bold; color:#0a58ca; margin-bottom:6px'>🏁 Competitive Crowding</div>"
+                    f"<div style='font-size:15px'>{crowding}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
 
 else:
     st.info("Please enter a target name to start evaluation.")
