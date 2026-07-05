@@ -189,12 +189,27 @@ def generate_ai_assessment(ctx):
     )
 
     prompt = (
-        "You are assisting an antibody drug-discovery researcher. Based ONLY on the "
-        "data below, assess this antigen as an antibody drug target.\n"
+        "You are a critical antibody drug-discovery analyst scoring how attractive an "
+        "antigen is as a target for a NEW antibody program. Base your answer ONLY on the "
+        "data below.\n\n"
+        "Score 1-10 using this rubric, and USE THE FULL RANGE — do not default to 7-8:\n"
+        "- 9-10: Strong biological validation AND clear white space (little/no direct "
+        "antibody competition). Rare.\n"
+        "- 7-8: Well validated but already has approved antibodies / crowded competition, "
+        "OR promising but early. Novelty is limited.\n"
+        "- 5-6: Mixed signals — some validation but notable risks (toxicity, shedding, "
+        "poor specificity) or heavy crowding.\n"
+        "- 3-4: Weak validation, major liabilities, or extremely crowded with little "
+        "differentiation.\n"
+        "- 1-2: Little evidence supporting it as an antibody target.\n\n"
+        "Key principle: a heavily crowded target with many approved antibodies is LESS "
+        "attractive for a NEW program (lower score), even if biologically validated. "
+        "Weigh competition, validation, and target liabilities against each other and "
+        "differentiate targets — they should not all get the same score.\n\n"
         "Respond in JSON with exactly these keys:\n"
-        '{"score": <integer 1-10>, "justification": "<one sentence>", '
-        '"opportunities": ["<point>", ...], "risks": ["<point>", ...], '
-        '"competitive_crowding": "<one to two sentences>", '
+        '{"score": <integer 1-10>, "justification": "<one sentence citing the main '
+        'drivers of the score>", "opportunities": ["<point>", ...], '
+        '"risks": ["<point>", ...], "competitive_crowding": "<one to two sentences>", '
         '"summary": "<2-3 sentence final verdict / bottom line>"}\n'
         "Give 2-4 items each for opportunities and risks. Be objective, note where "
         "evidence is limited, and do not invent facts not supported by the data.\n\n"
