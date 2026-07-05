@@ -160,14 +160,14 @@ def fetch_fda_approval(drug_name):
 
 
 def generate_ai_assessment(ctx):
-    """Call Google Gemini (free tier) to produce a target assessment.
+    """Call Groq (free tier) to produce a target assessment.
 
-    Reads the API key from Streamlit secrets ("GEMINI_API_KEY").
+    Reads the API key from Streamlit secrets ("GROQ_API_KEY").
     Returns the generated text, or an error string starting with 'ERROR:'.
     """
-    api_key = st.secrets.get("GEMINI_API_KEY", "")
+    api_key = st.secrets.get("GROQ_API_KEY", "")
     if not api_key:
-        return "ERROR: No Gemini API key configured."
+        return "ERROR: No Groq API key configured."
 
     # Build a compact context from the gathered data
     def block(title, items, limit=6):
@@ -202,16 +202,18 @@ def generate_ai_assessment(ctx):
     )
 
     try:
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.5-flash:generateContent?key={api_key}"
-        )
-        body = {"contents": [{"parts": [{"text": prompt}]}]}
-        resp = requests.post(url, json=body, timeout=60)
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {"Authorization": f"Bearer {api_key}"}
+        body = {
+            "model": "llama-3.3-70b-versatile",
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.4,
+        }
+        resp = requests.post(url, headers=headers, json=body, timeout=60)
         data = resp.json()
-        if "candidates" not in data:
+        if "choices" not in data:
             return f"ERROR: {data.get('error', {}).get('message', 'Unexpected response')}"
-        return data["candidates"][0]["content"]["parts"][0]["text"]
+        return data["choices"][0]["message"]["content"]
     except Exception as e:
         return f"ERROR: {e}"
 
@@ -816,7 +818,7 @@ if target:
 
     # --- AI Target Assessment (Google Gemini) ---
     st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
-    st.subheader("AI Target Assessment (Gemini)")
+    st.subheader("AI Target Assessment")
     st.warning(
         "🤖 **AI-generated opinion for reference only.** This summary is produced by an "
         "AI model from the data above and may contain errors. Always verify against "
@@ -828,8 +830,8 @@ if target:
             result = generate_ai_assessment(ai_ctx)
         if result.startswith("ERROR:"):
             st.error(
-                result + "\n\nMake sure a Gemini API key is set in Streamlit secrets "
-                "as `GEMINI_API_KEY`."
+                result + "\n\nMake sure a Groq API key is set in Streamlit secrets "
+                "as `GROQ_API_KEY`."
             )
         else:
             st.markdown(result)
