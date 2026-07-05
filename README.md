@@ -39,6 +39,9 @@ Recent clinical trials for the target, including status, phase, conditions, and 
 ### Key Publications (PubMed)
 The most-cited publications for the target, ranked by citation count (via Semantic Scholar), with journal and a link to view recent papers.
 
+### AI Target Assessment (Groq)
+On-demand AI evaluation that reads all of the above data and returns a structured, color-coded assessment: a suitability score (1–10) with a defined rubric, opportunities, risks, competitive crowding, and a bottom-line verdict. Because the underlying data is fetched live, the score reflects the current research/competitive landscape. Shown as a reference-only opinion.
+
 ---
 
 ## Smart Target Resolution
@@ -63,6 +66,7 @@ This project uses publicly available biomedical resources:
 * openFDA (Drugs@FDA)
 * ClinicalTrials.gov
 * Semantic Scholar (citation counts)
+* Groq (LLM API for the AI assessment)
 
 All data remain the property of their respective providers.
 
@@ -73,6 +77,26 @@ All data remain the property of their respective providers.
 * Python
 * Streamlit
 * Requests
+* Groq API (Llama 3.3) for AI assessment
+
+---
+
+## Running Locally
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+The **AI Target Assessment** feature needs a free [Groq](https://console.groq.com) API key.
+Add it to `.streamlit/secrets.toml` (kept out of git) for local use, or to the app's
+**Secrets** on Streamlit Community Cloud for the deployed app:
+
+```toml
+GROQ_API_KEY = "gsk_..."
+```
+
+All other features work without any API key.
 
 ---
 
