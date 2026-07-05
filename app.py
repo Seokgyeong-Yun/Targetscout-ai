@@ -842,6 +842,24 @@ if target:
         "primary sources before making research decisions."
     )
 
+    with st.expander("ℹ️ How the suitability score is defined"):
+        st.markdown(
+            "The score (1–10) rates how attractive this antigen is as a target for a "
+            "**new** antibody program — weighing biological validation, target liabilities, "
+            "and competitive crowding.\n\n"
+            "- **9–10:** Strong validation **and** clear white space (little/no direct "
+            "antibody competition). Rare.\n"
+            "- **7–8:** Well validated but already has approved antibodies / crowded "
+            "competition, or promising but early. Limited novelty.\n"
+            "- **5–6:** Mixed signals — some validation but notable risks (toxicity, "
+            "shedding, poor specificity) or heavy crowding.\n"
+            "- **3–4:** Weak validation, major liabilities, or extremely crowded with "
+            "little differentiation.\n"
+            "- **1–2:** Little evidence supporting it as an antibody target.\n\n"
+            "**Note:** a heavily crowded target with many approved antibodies scores "
+            "*lower* for a new program, even if biologically well validated."
+        )
+
     if st.button(f"🧠 Generate AI assessment for {target_key}"):
         with st.spinner("Analyzing target with AI..."):
             result = generate_ai_assessment(ai_ctx)
