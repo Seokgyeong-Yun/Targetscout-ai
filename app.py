@@ -194,7 +194,8 @@ def generate_ai_assessment(ctx):
         "Respond in JSON with exactly these keys:\n"
         '{"score": <integer 1-10>, "justification": "<one sentence>", '
         '"opportunities": ["<point>", ...], "risks": ["<point>", ...], '
-        '"competitive_crowding": "<one to two sentences>"}\n'
+        '"competitive_crowding": "<one to two sentences>", '
+        '"summary": "<2-3 sentence final verdict / bottom line>"}\n'
         "Give 2-4 items each for opportunities and risks. Be objective, note where "
         "evidence is limited, and do not invent facts not supported by the data.\n\n"
         f"=== DATA ===\n{context}"
@@ -888,6 +889,17 @@ if target:
                     f"padding:16px; margin-top:16px'>"
                     f"<div style='font-size:18px; font-weight:bold; color:#0a58ca; margin-bottom:6px'>🏁 Competitive Crowding</div>"
                     f"<div style='font-size:15px'>{crowding}</div>"
+                    f"</div>",
+                    unsafe_allow_html=True
+                )
+
+            summary = result.get("summary", "")
+            if summary:
+                st.markdown(
+                    f"<div style='background:#2b2b2b; border:2px solid #111; border-radius:12px; "
+                    f"padding:18px; margin-top:16px'>"
+                    f"<div style='font-size:18px; font-weight:bold; color:#f5f5f5; margin-bottom:6px'>📋 Bottom Line</div>"
+                    f"<div style='font-size:16px; color:#eaeaea; line-height:1.5'>{summary}</div>"
                     f"</div>",
                     unsafe_allow_html=True
                 )
