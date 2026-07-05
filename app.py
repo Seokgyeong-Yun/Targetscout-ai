@@ -204,7 +204,7 @@ def generate_ai_assessment(ctx):
     try:
         url = (
             "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.0-flash:generateContent?key={api_key}"
+            f"gemini-2.5-flash:generateContent?key={api_key}"
         )
         body = {"contents": [{"parts": [{"text": prompt}]}]}
         resp = requests.post(url, json=body, timeout=60)
