@@ -159,6 +159,63 @@ def fetch_fda_approval(drug_name):
         return None
 
 
+def generate_ai_assessment(ctx):
+    """Call Google Gemini (free tier) to produce a target assessment.
+
+    Reads the API key from Streamlit secrets ("GEMINI_API_KEY").
+    Returns the generated text, or an error string starting with 'ERROR:'.
+    """
+    api_key = st.secrets.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return "ERROR: No Gemini API key configured."
+
+    # Build a compact context from the gathered data
+    def block(title, items, limit=6):
+        if not items:
+            return f"{title}: none found\n"
+        if isinstance(items, list):
+            items = "; ".join(str(i) for i in items[:limit])
+        return f"{title}: {items}\n"
+
+    context = (
+        block("Target gene symbol", ctx.get("symbol"))
+        + block("Protein name", ctx.get("protein_name"))
+        + block("Protein function", ctx.get("function"))
+        + block("Gene summary", ctx.get("gene_summary"))
+        + block("Competitive drugs/candidates", ctx.get("competitive"))
+        + block("FDA-approved drugs", ctx.get("fda"))
+        + block("Recent clinical trials", ctx.get("trials"))
+        + block("Most-cited publications", ctx.get("publications"))
+    )
+
+    prompt = (
+        "You are assisting an antibody drug-discovery researcher. Based ONLY on the "
+        "data below, give a concise assessment of this antigen as an antibody drug "
+        "target. Structure your answer as:\n"
+        "1. Overall suitability score (1-10) with a one-line justification\n"
+        "2. Opportunities (2-4 bullet points)\n"
+        "3. Risks / challenges (2-4 bullet points)\n"
+        "4. Competitive crowding (is this target already crowded?)\n"
+        "Be objective and note where evidence is limited. Do not invent facts not "
+        "supported by the data.\n\n"
+        f"=== DATA ===\n{context}"
+    )
+
+    try:
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-2.0-flash:generateContent?key={api_key}"
+        )
+        body = {"contents": [{"parts": [{"text": prompt}]}]}
+        resp = requests.post(url, json=body, timeout=60)
+        data = resp.json()
+        if "candidates" not in data:
+            return f"ERROR: {data.get('error', {}).get('message', 'Unexpected response')}"
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception as e:
+        return f"ERROR: {e}"
+
+
 def fetch_uniprot(symbol):
     """Fetch the reviewed human UniProt entry for an exact gene symbol."""
     url = (
@@ -173,6 +230,18 @@ def fetch_uniprot(symbol):
 if target:
     target_key = target.upper()
     st.success(f"Target entered: {target_key}")
+
+    # Collects key facts from each section for the AI assessment at the bottom
+    ai_ctx = {
+        "symbol": target_key,
+        "protein_name": None,
+        "function": None,
+        "gene_summary": None,
+        "competitive": [],   # "name (type) — stage"
+        "fda": [],           # "name — brand, approval date"
+        "trials": [],        # "title — status, phase"
+        "publications": [],  # "title (citations)"
+    }
 
     # --- UniProt Protein Information ---
     st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
@@ -218,6 +287,8 @@ if target:
             # Use the official gene symbol for all downstream searches
             if gene_name != "Unknown":
                 target_key = gene_name.upper()
+                ai_ctx["symbol"] = target_key
+            ai_ctx["protein_name"] = recommended_name
 
             # Get function from comments
             function_text = ""
@@ -228,6 +299,7 @@ if target:
                     if texts:
                         function_text = texts[0].get("value", "")
                     break
+            ai_ctx["function"] = function_text
 
             col1, col2 = st.columns(2)
             with col1:
@@ -286,6 +358,7 @@ if target:
             gene_record = gene_summary_data["result"][gene_id]
             description = gene_record.get("description", "")
             summary = gene_record.get("summary", "")
+            ai_ctx["gene_summary"] = summary or description
 
             if description:
                 st.markdown(f"**{description}**")
@@ -447,6 +520,12 @@ if target:
                 for r in ot_sorted_rows
                 if r[1].get("maxClinicalStage") == "APPROVAL"
             ]
+            for _, row in ot_sorted_rows[:8]:
+                drug = row.get("drug", {})
+                stage = row.get("maxClinicalStage", "").replace("_", " ").title()
+                ai_ctx["competitive"].append(
+                    f"{drug.get('name', '')} ({drug.get('drugType', '')}) — {stage}"
+                )
     except Exception as e:
         ot_error = str(e)
 
@@ -474,6 +553,12 @@ if target:
                 # Sort by FDA approval date, newest first
                 fda_drugs.sort(key=lambda x: x[1].get("_date", ""), reverse=True)
                 shown = fda_drugs[:5]
+
+                for drug_name, fda in fda_drugs:
+                    ai_ctx["fda"].append(
+                        f"{drug_name.title()} — {fda.get('brand_name', '')}, "
+                        f"approved {fda.get('approval_date', '')}"
+                    )
 
                 for drug_name, fda in shown:
                     st.markdown(
@@ -621,6 +706,8 @@ if target:
                 st.markdown(f"[View on ClinicalTrials.gov](https://clinicaltrials.gov/study/{nct_id})")
                 st.divider()
 
+                ai_ctx["trials"].append(f"{title} — {status_text}, {phase_text}")
+
             ct_search_url = (
                 "https://clinicaltrials.gov/search?term="
                 + urllib.parse.quote(target_key + " antibody")
@@ -711,6 +798,9 @@ if target:
                 st.markdown(f"[View on PubMed](https://pubmed.ncbi.nlm.nih.gov/{pmid}/)")
                 st.divider()
 
+                cites = f"{citation_count} citations" if citation_count is not None else "citation count N/A"
+                ai_ctx["publications"].append(f"{title} ({cites})")
+
             recent_search_url = (
                 f"https://pubmed.ncbi.nlm.nih.gov/?term="
                 f"{urllib.parse.quote(target_key + ' AND antibody')}&sort=date"
@@ -723,6 +813,26 @@ if target:
 
     except Exception as e:
         st.error(f"PubMed Error: {e}")
+
+    # --- AI Target Assessment (Google Gemini) ---
+    st.markdown(THICK_DIVIDER, unsafe_allow_html=True)
+    st.subheader("AI Target Assessment (Gemini)")
+    st.warning(
+        "🤖 **AI-generated opinion for reference only.** This summary is produced by an "
+        "AI model from the data above and may contain errors. Always verify against "
+        "primary sources before making research decisions."
+    )
+
+    if st.button(f"🧠 Generate AI assessment for {target_key}"):
+        with st.spinner("Analyzing target with AI..."):
+            result = generate_ai_assessment(ai_ctx)
+        if result.startswith("ERROR:"):
+            st.error(
+                result + "\n\nMake sure a Gemini API key is set in Streamlit secrets "
+                "as `GEMINI_API_KEY`."
+            )
+        else:
+            st.markdown(result)
 
 else:
     st.info("Please enter a target name to start evaluation.")
