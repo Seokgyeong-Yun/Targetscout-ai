@@ -6,6 +6,25 @@ Bio-AI platform for antibody target evaluation and research intelligence.
 
 ---
 
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshot-overview.png" alt="Target overview and protein information" width="80%"><br>
+  <em>Protein information, gene summary, and 3D structures for a searched target.</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshot-drugs.png" alt="Competitive and FDA-approved drugs" width="80%"><br>
+  <em>FDA-approved and competitive drugs targeting the antigen.</em>
+</p>
+
+<p align="center">
+  <img src="assets/screenshot-ai.png" alt="AI target assessment" width="80%"><br>
+  <em>AI-generated suitability score with opportunities, risks, and a bottom-line verdict.</em>
+</p>
+
+---
+
 ## Overview
 
 TargetScout AI is a web application designed for researchers working in antibody engineering, oncology, and drug discovery.
@@ -13,6 +32,22 @@ TargetScout AI is a web application designed for researchers working in antibody
 The platform helps users evaluate a therapeutic target by integrating information from multiple public biomedical databases into a single dashboard.
 
 Enter a target gene or protein (e.g., **MSLN, HER2, TROP2, FRα/FOLR1, CLDN18**) and the app resolves it to the official gene symbol, then pulls together protein, structural, competitive, regulatory, clinical, and literature information.
+
+---
+
+## Example Workflow
+
+Search **`MSLN`** (mesothelin) and, on a single screen, you get:
+
+1. **Protein Information** — UniProt entry, function, and the canonical sequence
+2. **Gene Summary** — a concise NCBI Gene description
+3. **3D Structures** — experimental structures from RCSB PDB (e.g. antibody–antigen complexes)
+4. **FDA-Approved & Competitive Drugs** — approved antibodies and clinical candidates, with stage and mechanism
+5. **Clinical Trials** — recent trials with status, phase, and dates
+6. **Key Publications** — most-cited papers, ranked by citation count
+7. **AI Assessment** — a suitability score (1–10) summarizing the opportunity, risks, and how crowded the target is
+
+What normally takes an afternoon of tab-switching across six databases becomes one search.
 
 ---
 
