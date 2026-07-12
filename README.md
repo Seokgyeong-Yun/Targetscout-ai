@@ -6,7 +6,9 @@ Bio-AI platform for antibody target evaluation and research intelligence.
 
 ---
 
-## Screenshots
+## Usage Example
+
+A single search for **`MSLN`** produces the full dashboard below.
 
 <p align="center">
   <img src="assets/screenshot-overview.png" alt="Target overview and protein information" width="80%"><br>
