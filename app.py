@@ -901,7 +901,7 @@ if target:
                 st.markdown(
                     f"<div style='background:#eafaf1; border:2px solid #28a745; border-radius:12px; padding:16px'>"
                     f"<div style='font-size:18px; font-weight:bold; color:#1e7e34; margin-bottom:6px'>✅ Opportunities</div>"
-                    f"<ul style='margin:0; padding-left:20px; font-size:15px'>{opp_items}</ul>"
+                    f"<ul style='margin:0; padding-left:20px; font-size:15px; color:#1a1a1a'>{opp_items}</ul>"
                     f"</div>",
                     unsafe_allow_html=True
                 )
@@ -910,7 +910,7 @@ if target:
                 st.markdown(
                     f"<div style='background:#fdeaea; border:2px solid #dc3545; border-radius:12px; padding:16px'>"
                     f"<div style='font-size:18px; font-weight:bold; color:#b02a37; margin-bottom:6px'>⚠️ Risks / Challenges</div>"
-                    f"<ul style='margin:0; padding-left:20px; font-size:15px'>{risk_items}</ul>"
+                    f"<ul style='margin:0; padding-left:20px; font-size:15px; color:#1a1a1a'>{risk_items}</ul>"
                     f"</div>",
                     unsafe_allow_html=True
                 )
@@ -921,7 +921,7 @@ if target:
                     f"<div style='background:#e7f1ff; border:2px solid #0d6efd; border-radius:12px; "
                     f"padding:16px; margin-top:16px'>"
                     f"<div style='font-size:18px; font-weight:bold; color:#0a58ca; margin-bottom:6px'>🏁 Competitive Crowding</div>"
-                    f"<div style='font-size:15px'>{crowding}</div>"
+                    f"<div style='font-size:15px; color:#1a1a1a'>{crowding}</div>"
                     f"</div>",
                     unsafe_allow_html=True
                 )
